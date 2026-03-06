@@ -1,10 +1,4 @@
 # Topología Route-Based VPN con OSPF
-# Estructura:
-# R1 ---- ISP(R5) ---- R2
-#  |                   |
-# SW-LEFT            SW-RIGHT
-#  |  |               |   |
-# VLAN10 VLAN20     VLAN30 VLAN40
 
 ############################################################
 # 1) SWITCH IZQUIERDO (SW-LEFT)
