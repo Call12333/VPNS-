@@ -1,0 +1,278 @@
+# Topología GRE over IPsec con OSPF
+# Estructura:
+# R1 ---- ISP(R5) ---- R2
+#  |                   |
+# SW-LEFT            SW-RIGHT
+#  |  |               |   |
+# VLAN10 VLAN20     VLAN30 VLAN40
+
+############################################################
+# 1) SWITCH IZQUIERDO (SW-LEFT)
+############################################################
+enable
+conf t
+hostname SW-LEFT
+
+vlan 10
+ name DEVOPS
+
+vlan 20
+ name PENTESTING
+
+interface e0/0
+ switchport mode trunk
+ no shutdown
+
+interface e2/1
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
+
+interface e3/1
+ switchport mode access
+ switchport access vlan 20
+ no shutdown
+
+end
+write memory
+
+############################################################
+# 2) SWITCH DERECHO (SW-RIGHT)
+############################################################
+enable
+conf t
+hostname SW-RIGHT
+
+vlan 30
+ name MARKETING
+
+vlan 40
+ name SERVICE_CLIENT
+
+interface e0/0
+ switchport mode trunk
+ no shutdown
+
+interface e2/1
+ switchport mode access
+ switchport access vlan 30
+ no shutdown
+
+interface e3/1
+ switchport mode access
+ switchport access vlan 40
+ no shutdown
+
+end
+write memory
+
+############################################################
+# 3) ROUTER IZQUIERDO (R1 / Enterprise1) - GRE over IPsec
+############################################################
+enable
+conf t
+hostname Enterprise1
+
+interface e0/0
+ ip address 200.25.41.1 255.255.255.252
+ no shutdown
+
+interface e0/1
+ no ip address
+ no shutdown
+
+interface e0/1.10
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+
+interface e0/1.20
+ encapsulation dot1Q 20
+ ip address 192.168.20.1 255.255.255.0
+
+ip dhcp excluded-address 192.168.10.1 192.168.10.10
+ip dhcp excluded-address 192.168.20.1 192.168.20.10
+
+ip dhcp pool DEVOPS
+ network 192.168.10.0 255.255.255.0
+ default-router 192.168.10.1
+ dns-server 8.8.8.8
+
+ip dhcp pool PENTESTING
+ network 192.168.20.0 255.255.255.0
+ default-router 192.168.20.1
+ dns-server 8.8.8.8
+
+crypto isakmp policy 10
+ encryption aes
+ hash sha
+ authentication pre-share
+ group 2
+ lifetime 86400
+
+crypto isakmp key angel address 200.41.25.1
+
+crypto ipsec transform-set VPN-SET esp-aes esp-sha-hmac
+ mode transport
+
+access-list 110 permit gre host 200.25.41.1 host 200.41.25.1
+
+crypto map VPN-MAP 10 ipsec-isakmp
+ set peer 200.41.25.1
+ set transform-set VPN-SET
+ match address 110
+
+interface Tunnel0
+ ip address 10.10.10.1 255.255.255.252
+ tunnel source e0/0
+ tunnel destination 200.41.25.1
+ no shutdown
+
+interface e0/0
+ crypto map VPN-MAP
+
+router ospf 1
+ network 200.25.41.0 0.0.0.3 area 0
+ network 192.168.10.0 0.0.0.255 area 0
+ network 192.168.20.0 0.0.0.255 area 0
+ network 10.10.10.0 0.0.0.3 area 0
+
+ip forward-protocol nd
+no ip http server
+no ip http secure-server
+
+end
+write memory
+
+############################################################
+# 4) ROUTER DERECHO (R2 / Enterprise2) - GRE over IPsec
+############################################################
+enable
+conf t
+hostname Enterprise2
+
+interface e0/0
+ ip address 200.41.25.1 255.255.255.252
+ no shutdown
+
+interface e0/1
+ no ip address
+ no shutdown
+
+interface e0/1.30
+ encapsulation dot1Q 30
+ ip address 192.168.30.1 255.255.255.0
+
+interface e0/1.40
+ encapsulation dot1Q 40
+ ip address 192.168.40.1 255.255.255.0
+
+ip dhcp excluded-address 192.168.30.1 192.168.30.10
+ip dhcp excluded-address 192.168.40.1 192.168.40.10
+
+ip dhcp pool MARKETING
+ network 192.168.30.0 255.255.255.0
+ default-router 192.168.30.1
+ dns-server 8.8.8.8
+
+ip dhcp pool SERVICE_CLIENT
+ network 192.168.40.0 255.255.255.0
+ default-router 192.168.40.1
+ dns-server 8.8.8.8
+
+crypto isakmp policy 10
+ encryption aes
+ hash sha
+ authentication pre-share
+ group 2
+ lifetime 86400
+
+crypto isakmp key angel address 200.25.41.1
+
+crypto ipsec transform-set VPN-SET esp-aes esp-sha-hmac
+ mode transport
+
+access-list 110 permit gre host 200.41.25.1 host 200.25.41.1
+
+crypto map VPN-MAP 10 ipsec-isakmp
+ set peer 200.25.41.1
+ set transform-set VPN-SET
+ match address 110
+
+interface Tunnel0
+ ip address 10.10.10.2 255.255.255.252
+ tunnel source e0/0
+ tunnel destination 200.25.41.1
+ no shutdown
+
+interface e0/0
+ crypto map VPN-MAP
+
+router ospf 1
+ network 200.41.25.0 0.0.0.3 area 0
+ network 192.168.30.0 0.0.0.255 area 0
+ network 192.168.40.0 0.0.0.255 area 0
+ network 10.10.10.0 0.0.0.3 area 0
+
+ip forward-protocol nd
+no ip http server
+no ip http secure-server
+
+end
+write memory
+
+############################################################
+# 5) ISP (R5)
+############################################################
+enable
+conf t
+hostname ISP
+
+interface e0/2
+ ip address 200.25.41.2 255.255.255.252
+ no shutdown
+
+interface e0/1
+ ip address 200.41.25.2 255.255.255.252
+ no shutdown
+
+router ospf 1
+ network 200.25.41.0 0.0.0.3 area 0
+ network 200.41.25.0 0.0.0.3 area 0
+
+end
+write memory
+
+############################################################
+# 6) VPCS / PCs
+############################################################
+# En cada VPCS:
+ip dhcp
+
+############################################################
+# 7) VERIFICACIÓN
+############################################################
+# En R1:
+show ip interface brief
+show interface tunnel0
+show crypto isakmp sa
+show crypto ipsec sa
+show ip ospf neighbor
+show ip route
+
+# En R2:
+show ip interface brief
+show interface tunnel0
+show crypto isakmp sa
+show crypto ipsec sa
+show ip ospf neighbor
+show ip route
+
+# Pruebas desde R1:
+ping 10.10.10.2
+ping 192.168.30.1 source 192.168.10.1
+ping 192.168.40.1 source 192.168.20.1
+
+# Pruebas desde R2:
+ping 10.10.10.1
+ping 192.168.10.1 source 192.168.30.1
+ping 192.168.20.1 source 192.168.40.1
