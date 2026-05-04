@@ -25,6 +25,10 @@ A diferencia de una VPN IPsec normal, este lab permite:
 
 📌 El túnel GRE pasa por Internet y luego es protegido con IPsec
 
+
+<img width="886" height="498" alt="image" src="https://github.com/user-attachments/assets/d659e72d-3530-427e-a93b-4fd3b49a4c35" />
+
+
 ---
 
 ## ⚙️ Fase 1: Crear túnel GRE
